@@ -52,6 +52,9 @@ class DataGenerator(tf.keras.utils.Sequence):
         eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
         eye = '/eye' + eye
         eye = self.prepare_time_series_data(data_path=eye)
+
+        eye = eye.reshape((self.batch_size, 4, 32, 9))
+
         # Process Head
         head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
         head = '/head' + head
@@ -90,7 +93,10 @@ class DataGenerator(tf.keras.utils.Sequence):
                 normalized_frame = resized_frame / 255
                 # Appending the normalized frame into the frames list
                 frames_list.append(normalized_frame)
+
             features.append(random.sample(frames_list, self.time_step_cnn))
+            # features.append(frames_list[64: self.time_step_cnn + 128])
+
             video_reader.release()
 
         return np.asarray(features)

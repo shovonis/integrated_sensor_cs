@@ -19,8 +19,9 @@ def _construct_model():
     input_optic, flatten_optics = multimodal.get_conv_3d(input_shape)
     input_disp, flatten_disp = multimodal.get_conv_3d(input_shape)
 
-    input_eye, flatten_eye = multimodal.get_lstm(custom_shape=(time_step_for_time_series, eye_features))
-    input_head, flatten_head = multimodal.get_lstm(custom_shape=(time_step_for_time_series, head_features))
+    input_eye, flatten_eye = multimodal.conv_lstm(
+        custom_shape=(batch_size, time_step_for_time_series // batch_size, eye_features))
+    # input_head, flatten_head = multimodal.get_lstm(custom_shape=(time_step_for_time_series, head_features))
 
     # Get the full model
     model = multimodal.get_model([input_clip, input_optic, input_eye],
@@ -84,10 +85,12 @@ def train_model():
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     early_stopping = callbacks.EarlyStopping(monitor="val_accuracy",
-                                             mode="max", patience=20,
+                                             mode="max", patience=25,
                                              restore_best_weights=True)
 
-    model.compile(loss='categorical_crossentropy', optimizer='Adam', metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=tf.keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0),
+                  metrics=['accuracy'])
     train_history = model.fit(train_gen, validation_data=validation_gen, verbose=1, epochs=epochs,
                               callbacks=[tensorboard_callback, early_stopping])
 
@@ -111,11 +114,11 @@ def train_model():
 
     precisions, recall, f1_score, _ = mt.precision_recall_fscore_support(actual_cs, predicted_cs,
                                                                          labels=[0, 1, 2])
-    print("Precision: ")
+    print("Precision: .............")
     print(precisions)
-    print("Recall: ")
+    print("Recall: ...............")
     print(recall)
-    print("F1: ")
+    print("F1: ..................")
     print(f1_score)
     # Train History
     rg.plot_train_vs_val_loss(train_history)
