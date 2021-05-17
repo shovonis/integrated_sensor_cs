@@ -3,18 +3,22 @@ from src.data_processor import data_processor as dp
 import tensorflow as tf
 import numpy as np
 import logging
+from datetime import datetime
 
 
 def print_and_save_model(model):
     print(model.summary())
-    logging.info("See model summary at: .../results/model_summary.txt")
-    with open('../results/model_summary.txt', 'w') as f:
+    logging.info("See model summary at: .../results/")
+    now = datetime.now()
+    current_time = now.strftime("%H-%M-%S")
+    summary_file = '../results/model_summary-' + current_time + '.txt'
+    with open(summary_file, 'w') as f:
         model.summary(print_fn=lambda x: f.write(x + '\n'))
-
     if hyper_parameters["classification"]:
-        model.save('../model/model_classification.h5')
+        file_name = '../model/model_classification' + current_time + '.h5'
     else:
-        model.save('../model/model_regression.h5')
+        file_name = '../model/model_regression' + current_time + '.h5'
+    model.save(file_name)
 
 
 def train_model():
