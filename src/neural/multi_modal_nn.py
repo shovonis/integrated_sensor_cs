@@ -113,14 +113,14 @@ class DeepVDs:
         input_layer = Input(shape=custom_shape)
         X = TimeDistributed(Conv1D(filters=64, kernel_size=4, activation='relu'))(input_layer)
         X = TimeDistributed(Conv1D(filters=128, kernel_size=4, activation='relu'))(X)
-        X = TimeDistributed(MaxPooling1D(pool_size=2))(X)
-        X = TimeDistributed(Conv1D(filters=256, kernel_size=4, activation='relu'))(X)
-        X = Dropout(0.4)(X)
+        # X = TimeDistributed(MaxPooling1D(pool_size=2))(X)
+        # X = TimeDistributed(Conv1D(filters=256, kernel_size=4, activation='relu'))(X)
+        # X = Dropout(0.4)(X)
         X = TimeDistributed(MaxPooling1D(pool_size=2))(X)
         X = TimeDistributed(Flatten())(X)
         X = LSTM(64, recurrent_dropout=0.2)(X)
         # X = Dense(units=32, activation='relu')(X)
-        # X = BatchNormalization()(X)
+        X = BatchNormalization()(X)
         # fatten_layer = Flatten()(X)
         return input_layer, X
 

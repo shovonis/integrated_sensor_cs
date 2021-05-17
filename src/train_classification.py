@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics as mt
 import tensorflow as tf
+from imblearn.under_sampling import RandomUnderSampler
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import callbacks
@@ -15,17 +16,21 @@ from neural import multi_modal_nn as ml
 
 def _construct_model():
     multimodal = ml.DeepVDs(input_shape=input_shape, output_shape=output_shape)
-    input_clip, flatten_clips = multimodal.get_conv_3d(input_shape)
-    input_optic, flatten_optics = multimodal.get_conv_3d(input_shape)
-    input_disp, flatten_disp = multimodal.get_conv_3d(input_shape)
+    # left_input_clip, left_flatten_layer = multimodal.get_conv_3d(input_shape)
+    # right_input_clip, right_flatten_layer = multimodal.get_conv_3d(input_shape)
+
+    # input_optic, flatten_optics = multimodal.get_conv_3d(input_shape)
+    # input_disp, flatten_disp = multimodal.get_conv_3d(input_shape)
 
     input_eye, flatten_eye = multimodal.conv_lstm(
         custom_shape=(batch_size, time_step_for_time_series // batch_size, eye_features))
-    # input_head, flatten_head = multimodal.get_lstm(custom_shape=(time_step_for_time_series, head_features))
+
+    input_head, flatten_head = multimodal.conv_lstm(custom_shape=(batch_size, time_step_for_time_series // batch_size,
+                                                                  head_features))
 
     # Get the full model
-    model = multimodal.get_model([input_clip, input_optic, input_eye],
-                                 [flatten_clips, flatten_optics, flatten_eye],
+    model = multimodal.get_model([input_eye, input_head],
+                                 [flatten_eye, flatten_head],
                                  classification=classification)
 
     return model
@@ -41,7 +46,7 @@ def _get_data_generators(train, test):
     validation_gen = DataGenerator(dataset=test, base_path=base_path, image_shape=(input_shape[1], input_shape[2]),
                                    time_step_image=input_shape[0], batch_size=batch_size,
                                    classification=classification, time_step_time_series=time_step_for_time_series,
-                                   shuffle=True)
+                                   shuffle=False)
 
     return train_gen, validation_gen
 
@@ -52,7 +57,7 @@ def manage_imbalance_class(meta_data):
     logging.info("Class 1:  %s, Class 2: %s, Class 3: %s", class1, class2, class3)
     logging.info("Random Oversampling class")
     X = meta_data
-    y = meta_data['fms']
+    y = meta_data['cs_class']
     ros = RandomOverSampler(random_state=42)
     X_res, _ = ros.fit_resample(X, y)
     return X_res
@@ -139,18 +144,22 @@ if __name__ == "__main__":
     # Data path
     base_path = '../data'
     meta_data = pd.read_csv('../data/meta_data.csv')
+    # indiv_data = meta_data[(meta_data['individual'] == 1)]
+    # indiv_data = indiv_data.reset_index(drop=True)
+    # print(indiv_data.shape)
+
     logging.info("Check for imbalance class")
     meta_data = manage_imbalance_class(meta_data)
-    logging.info("Data Shape after oversampling: %s", meta_data.shape)
-
+    # logging.info("Data Shape after oversampling: %s", meta_data.shape)
+    # print(meta_data.shape)
     # Setup the Hyper Parameters
     logging.info("................Current Hyper Parameters.......................")
     input_shape = (128, 128, 128, 3)
-    time_step_for_time_series = 128
+    time_step_for_time_series = 256
     eye_features = 9
     head_features = 4
-    batch_size = 4
-    epochs = 50
+    batch_size = 8
+    epochs = 1000
     classification = True
 
     logging.info("Image Shape: %s", input_shape)

@@ -39,26 +39,29 @@ class DataGenerator(tf.keras.utils.Sequence):
         # Clips
         clips = self.dataset.loc[list_IDs_temp, ['video_clip']].to_numpy()  # .reshape(-1)
         clips = '/clips' + clips
-        clips = self.frames_extraction(video_path=clips)
+        left_clips, right_clips = self.frames_extraction(video_path=clips)
         # # optical
-        optical = self.dataset.loc[list_IDs_temp, ['optical']].to_numpy()
-        optical = '/optic' + optical
-        optical = self.frames_extraction(video_path=optical)
+        # optical = self.dataset.loc[list_IDs_temp, ['optical']].to_numpy()
+        # optical = '/optic' + optical
+        # optical = self.frames_extraction(video_path=optical)
         # # Disparity
-        disparity = self.dataset.loc[list_IDs_temp, ['disparity']].to_numpy()
-        disparity = '/disp' + disparity
-        disparity = self.frames_extraction(video_path=disparity)
+        # disparity = self.dataset.loc[list_IDs_temp, ['disparity']].to_numpy()
+        # disparity = '/disp' + disparity
+        # disparity = self.frames_extraction(video_path=disparity)
         # Process Eye
         eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
         eye = '/eye' + eye
         eye = self.prepare_time_series_data(data_path=eye)
-
-        eye = eye.reshape((self.batch_size, 4, 32, 9))
-
+        eye = eye.reshape((self.batch_size, -1, 313, 9))
+        print("EYE RESHAPE: ", eye.shape)
         # Process Head
         head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
         head = '/head' + head
         head = self.prepare_time_series_data(data_path=head)
+        head = head.reshape((self.batch_size, -1, 313, 4))
+        print("HEAD RESHAPE: ", head.shape)
+
+
         # Target
         if self.classification:
             cs_class = self.dataset.loc[list_IDs_temp, ['cs_class']].to_numpy()
@@ -67,7 +70,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         else:
             cs_class = self.dataset.loc[list_IDs_temp, ['fms']].to_numpy()
 
-        return [clips, optical, eye], cs_class
+        return [eye, head], cs_class
 
     def on_epoch_end(self):
         """Updates the indexes after each epoch"""
@@ -78,8 +81,12 @@ class DataGenerator(tf.keras.utils.Sequence):
 
     def frames_extraction(self, video_path):
         # Empty List declared to store video frames
-        frames_list = []
-        features = []
+        left_eye_frames = []
+        left_eye_features = []
+
+        right_eye_frames = []
+        right_eye_features = []
+
         for video in video_path:
             video = self.base_path + video
             video_reader = cv2.VideoCapture(video[0])
@@ -87,19 +94,24 @@ class DataGenerator(tf.keras.utils.Sequence):
                 success, frame = video_reader.read()
                 if not success:
                     break
-                # Resize the Frame to fixed Dimensions and take only left image
-                resized_frame = cv2.resize(frame[:, 0:256], self.image_shape)
-                # Normalize the resized frame by dividing it with 255 so that each pixel value then lies between 0 and 1
-                normalized_frame = resized_frame / 255
-                # Appending the normalized frame into the frames list
-                frames_list.append(normalized_frame)
+                L_resized_frame = cv2.resize(frame[:, 0:256], self.image_shape)
+                R_resized_frame = cv2.resize(frame[:, 256:], self.image_shape)
 
-            features.append(random.sample(frames_list, self.time_step_cnn))
-            # features.append(frames_list[64: self.time_step_cnn + 128])
+                normalized_frame = L_resized_frame / 255
+                left_eye_frames.append(normalized_frame)
+
+                normalized_frame = R_resized_frame / 255
+                right_eye_frames.append(normalized_frame)
+
+            # left_eye_features.append(random.sample(left_eye_frames, self.time_step_cnn))
+            # left_eye_features.append(random.sample(left_eye_frames, self.time_step_cnn))
+
+            left_eye_features.append(left_eye_frames[0: self.time_step_cnn])
+            right_eye_features.append(right_eye_frames[0: self.time_step_cnn])
 
             video_reader.release()
 
-        return np.asarray(features)
+        return np.asarray(left_eye_features), np.asarray(right_eye_features)
 
     def prepare_time_series_data(self, data_path=None):
         X = []
@@ -115,6 +127,8 @@ class DataGenerator(tf.keras.utils.Sequence):
                 if end_ix >= data.shape[0]:
                     break
                 seq_X = data[i:end_ix]
+                print("Sequence Shape: ", np.asarray(seq_X).shape)
                 X.append(seq_X)
         sample_per_batch = random.sample(X, self.batch_size)
-        return np.array(sample_per_batch)
+        print("LSTM Shape", np.array(X).shape)
+        return np.array(X)
