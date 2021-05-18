@@ -36,6 +36,7 @@ class DataProcessor:
         data = pd.DataFrame()
         for file in files:
             tmp_data = pd.read_csv(file_path + file)
+
             if self.classification:
                 first_column = tmp_data.pop('cs')
                 tmp_data.drop(columns=['fms', '#Frame'], inplace=True)
@@ -54,7 +55,7 @@ class DataProcessor:
         number_observation = time_step * number_of_features
         X, Y = values[:, :number_observation], values[:, -(number_of_features + 1)]
         X = X.reshape((X.shape[0], time_step, number_of_features))
-        if self.classification:
-            Y = tf.keras.utils.to_categorical(Y, num_classes=3)
+        # if self.classification:
+        #     Y = tf.keras.utils.to_categorical(Y, num_classes=3)
 
         return X, Y

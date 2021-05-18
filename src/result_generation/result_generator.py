@@ -1,6 +1,7 @@
 import itertools
 import matplotlib.pyplot as plt
 import numpy as np
+import sklearn.metrics as mt
 
 
 def plot_confusion_matrix(cm, classes,
@@ -42,8 +43,20 @@ def plot_confusion_matrix(cm, classes,
     plt.close()
 
 
-def plot_train_vs_val_loss(model_training_history):
+def process_results_for_classification(predicted_cs, actual_cs, output_shape):
+    precisions, recall, f1_score, _ = mt.precision_recall_fscore_support(actual_cs, predicted_cs,
+                                                                         labels=range(0, output_shape))
 
+    print("Ground Truth CS: ", actual_cs)
+    print("Predicted CS: ", predicted_cs)
+    print("Precision : ", precisions)
+    print("Recall: ", recall)
+    print("F1-Score: ", f1_score)
+
+    return precisions, recall, f1_score
+
+
+def plot_train_vs_val_loss(model_training_history):
     plt.plot(model_training_history.history['loss'])
     plt.plot(model_training_history.history['val_loss'])
     plt.title('Model Loss')
