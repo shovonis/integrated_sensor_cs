@@ -1,6 +1,8 @@
 import pandas as pd
 import os
 import tensorflow as tf
+from sklearn.preprocessing import StandardScaler
+from imblearn.over_sampling import RandomOverSampler
 
 
 class DataProcessor:
@@ -50,10 +52,22 @@ class DataProcessor:
 
         return data
 
+    def manage_imbalance_class(self, X, Y):
+        ros = RandomOverSampler(random_state=42)
+        X_res, Y_res = ros.fit_resample(X, Y)
+        return X_res, Y_res
+
     def get_x_y_data(self, data, time_step, number_of_features):
         values = data.values
         number_observation = time_step * number_of_features
         X, Y = values[:, :number_observation], values[:, -(number_of_features + 1)]
+
+        if self.classification:
+            X, Y = self.manage_imbalance_class(X=X, Y=Y)
+
+        scaler = StandardScaler()
+        print("Normalized Data")
+        X = scaler.fit_transform(X)
         X = X.reshape((X.shape[0], time_step, number_of_features))
         # if self.classification:
         #     Y = tf.keras.utils.to_categorical(Y, num_classes=3)

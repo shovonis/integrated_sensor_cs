@@ -131,6 +131,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-
+data2/
 #Trained Models
 *.h5

@@ -9,6 +9,12 @@ from result_generation import result_generator
 from sklearn.metrics import r2_score
 from scipy.stats import pearsonr
 from scipy.stats import spearmanr
+from imblearn.over_sampling import RandomOverSampler
+from tensorflow.keras import backend as K
+
+
+def root_mean_squared_error(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true)))
 
 
 def print_and_save_model(model):
@@ -28,7 +34,7 @@ def print_and_save_model(model):
 
 def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
     current_fold = 1
-    kfold = StratifiedKFold(n_splits=fold, shuffle=False)
+    kfold = StratifiedKFold(n_splits=fold, shuffle=True)
     list_acc = []
     list_loss = []
     list_history = []
@@ -42,23 +48,23 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
         print("### Train on Fold: ", current_fold)
 
         history = model.fit(x=[eye_X[train], head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
-                            batch_size=512, validation_split=0.2, verbose=1, shuffle=False)
+                            batch_size=hyper_parameters["batch_size"], validation_split=0.2, verbose=1, shuffle=False)
 
         list_history.append(history)
 
         print("\n ### Evaluate (Test data) on Fold : ", current_fold)
         # TODO: Add or remove modalities here
-        loss, accuracy = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
-        print('On Fold %d test loss: %.3f' % (current_fold, loss))
-        list_loss.append(loss)  # Loss is universal
-
-        # Make predictions
-        actual_cs = target[test]  # Ground Truth
-        predicted_cs = model.predict(x=[eye_X[test], head_X[test]])
-
-        print("Actual CS: ", actual_cs)
 
         if hyper_parameters["classification"]:
+            loss, accuracy = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
+            print('On Fold %d test loss: %.3f' % (current_fold, loss))
+            list_loss.append(loss)  # Loss is universal
+
+            # Make predictions
+            actual_cs = target[test]  # Ground Truth
+            predicted_cs = model.predict(x=[eye_X[test], head_X[test]])
+
+            print("Actual CS: ", actual_cs)
             print('On Fold %d test accuracy: %.3f' % (current_fold, accuracy))
             list_acc.append(accuracy)
             predicted_cs = np.argmax(predicted_cs, axis=1)
@@ -68,6 +74,15 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
             list_recall.append(recall)
             list_f1.append(f1_score)
         else:
+            loss = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
+            print('On Fold %d test loss: %.3f' % (current_fold, loss[0]))
+            list_loss.append(loss[0])  # Loss is universal
+
+            # Make predictions
+            actual_cs = target[test]  # Ground Truth
+            predicted_cs = model.predict(x=[eye_X[test], head_X[test]])
+
+            print("Actual CS: ", actual_cs)
             predicted_cs = list(np.concatenate(predicted_cs).flat)
             print("Predicted CS: ", predicted_cs)
 
@@ -116,11 +131,15 @@ def train_model():
     # Eye Data
     print("Processing Eye Tracking data")
     eye_data = data_processor.get_data_from_file(modalities_paths["Eye"])
-    eye_data.to_csv("test.csv")
     eye_data = data_processor.prepare_time_series_data(eye_data, time_step=hyper_parameters["time_step"],
                                                        output_dim=1)
+    eye_data = eye_data[eye_data.columns[~eye_data.columns.to_series().str.contains(pat='X1\(')]]
+    # eye_data.to_csv("test.csv")
+
     eye_X, eye_Y = data_processor.get_x_y_data(data=eye_data, time_step=hyper_parameters["time_step"],
                                                number_of_features=hyper_parameters["eye_features"])
+
+    # eye_X,  eye_Y = manage_imbalance_class(eye_X, eye_Y)
     print("Eye Data X Shape: ", eye_X.shape)
     print("Eye Data Y Shape: ", eye_Y.shape)
 
@@ -131,8 +150,14 @@ def train_model():
     head_data = data_processor.get_data_from_file(modalities_paths["Head"])
     head_data = data_processor.prepare_time_series_data(head_data, time_step=hyper_parameters["time_step"],
                                                         output_dim=1)
+
+    head_data = head_data[head_data.columns[~head_data.columns.to_series().str.contains(pat='X1\(')]]
+
     head_X, head_Y = data_processor.get_x_y_data(data=head_data, time_step=hyper_parameters["time_step"],
                                                  number_of_features=hyper_parameters["head_features"])
+
+    # head_X,  head_Y = manage_imbalance_class(head_X, head_Y)
+
     print("Head Data X Shape: ", head_X.shape)
     print("Head Data Y Shape: ", head_Y.shape)
 
@@ -152,7 +177,7 @@ def train_model():
                                            output_layers=[eye_output_layer, head_output_layer],
                                            merge=True)
         target = eye_Y  # Set it to head or eye target both are same
-        model.compile(loss='mse', optimizer='adam', metrics=['mae'])
+        model.compile(loss=root_mean_squared_error, optimizer='adam', metrics=['mae', 'mse'])
 
         print(target)
 
@@ -176,11 +201,11 @@ if __name__ == '__main__':
                         format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
     hyper_parameters = {"time_step": 60, "eye_features": 9, "head_features": 4, "Epochs": 10,
-                        "classification": True, "number_of_class": 3, "concatenate": False}
+                        "classification": True, "number_of_class": 4, "concatenate": False, "batch_size": 512}
 
-    modalities = {"Eye": True, "Head": False, "Clips": False, "Optic": False, "Disparity": False}
+    modalities = {"Eye": True, "Head": True, "Clips": False, "Optic": False, "Disparity": False}
 
-    modalities_paths = {"Eye": '../data/eye/', "Head": '../data/head/'}
+    modalities_paths = {"Eye": '../data2/eye/', "Head": '../data2/head/'}
 
     # Train The model
     train_model()
