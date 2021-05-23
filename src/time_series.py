@@ -11,6 +11,8 @@ from scipy.stats import pearsonr
 from scipy.stats import spearmanr
 from imblearn.over_sampling import RandomOverSampler
 from tensorflow.keras import backend as K
+from tensorflow.keras import callbacks
+
 
 
 def root_mean_squared_error(y_true, y_pred):
@@ -47,15 +49,21 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
     for train, test in kfold.split(eye_X, target):
         print("### Train on Fold: ", current_fold)
 
-        history = model.fit(x=[eye_X[train], head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
-                            batch_size=hyper_parameters["batch_size"], validation_split=0.2, verbose=1, shuffle=False)
-
-        list_history.append(history)
-
-        print("\n ### Evaluate (Test data) on Fold : ", current_fold)
-        # TODO: Add or remove modalities here
-
         if hyper_parameters["classification"]:
+            #
+
+            early_stopping = callbacks.EarlyStopping(monitor="val_loss",
+                                                     mode="min", patience=25,
+                                                     restore_best_weights=True)
+
+            history = model.fit(x=[eye_X[train], head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
+                                batch_size=hyper_parameters["batch_size"], validation_split=0.2, verbose=1,
+                                shuffle=False, callbacks=[early_stopping])
+            list_history.append(history)
+
+            print("\n ### Evaluate (Test data) on Fold : ", current_fold)
+            # TODO: Add or remove modalities here
+
             loss, accuracy = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
             print('On Fold %d test loss: %.3f' % (current_fold, loss))
             list_loss.append(loss)  # Loss is universal
@@ -74,6 +82,16 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
             list_recall.append(recall)
             list_f1.append(f1_score)
         else:
+            early_stopping = callbacks.EarlyStopping(monitor="val_loss",
+                                                     mode="min", patience=25,
+                                                     restore_best_weights=True)
+
+            history = model.fit(x=[eye_X[train], head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
+                                batch_size=hyper_parameters["batch_size"], validation_split=0.2, verbose=1,
+                                shuffle=False, callbacks=[early_stopping])
+            list_history.append(history)
+            print("\n ### Evaluate (Test data) on Fold : ", current_fold)
+            # TODO: Add or remove modalities here
             loss = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
             print('On Fold %d test loss: %.3f' % (current_fold, loss[0]))
             list_loss.append(loss[0])  # Loss is universal
@@ -138,12 +156,13 @@ def train_model():
 
     eye_X, eye_Y = data_processor.get_x_y_data(data=eye_data, time_step=hyper_parameters["time_step"],
                                                number_of_features=hyper_parameters["eye_features"])
+    n_steps, n_length = 4, 15
+    eye_X = eye_X.reshape((eye_X.shape[0], n_steps, n_length, hyper_parameters["eye_features"]))
 
-    # eye_X,  eye_Y = manage_imbalance_class(eye_X, eye_Y)
     print("Eye Data X Shape: ", eye_X.shape)
     print("Eye Data Y Shape: ", eye_Y.shape)
 
-    eye_input_layer, eye_output_layer = model.get_lstm(input_shape=(eye_X.shape[1], eye_X.shape[2]))
+    eye_input_layer, eye_output_layer = model.conv_lstm(input_shape=(eye_X.shape[1], eye_X.shape[2], eye_X.shape[3]))
 
     # Head Data
     print("Processing Head Tracking data")
@@ -156,12 +175,12 @@ def train_model():
     head_X, head_Y = data_processor.get_x_y_data(data=head_data, time_step=hyper_parameters["time_step"],
                                                  number_of_features=hyper_parameters["head_features"])
 
-    # head_X,  head_Y = manage_imbalance_class(head_X, head_Y)
+    head_X = head_X.reshape((head_X.shape[0], n_steps, n_length, hyper_parameters["head_features"]))
 
     print("Head Data X Shape: ", head_X.shape)
     print("Head Data Y Shape: ", head_Y.shape)
 
-    head_input_layer, head_output_layer = model.get_lstm(input_shape=(head_X.shape[1], head_X.shape[2]))
+    head_input_layer, head_output_layer = model.conv_lstm(input_shape=(head_X.shape[1], head_X.shape[2], head_X.shape[3]))
 
     if hyper_parameters["classification"]:
         # Get Model and Train
@@ -200,12 +219,12 @@ if __name__ == '__main__':
     logging.basicConfig(filename='../log/server.log', level=logging.INFO,
                         format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
-    hyper_parameters = {"time_step": 60, "eye_features": 9, "head_features": 4, "Epochs": 10,
+    hyper_parameters = {"time_step": 60, "eye_features": 9, "head_features": 4, "Epochs": 300,
                         "classification": True, "number_of_class": 4, "concatenate": False, "batch_size": 512}
 
     modalities = {"Eye": True, "Head": True, "Clips": False, "Optic": False, "Disparity": False}
 
-    modalities_paths = {"Eye": '../data2/eye/', "Head": '../data2/head/'}
+    modalities_paths = {"Eye": '../data3/eye/', "Head": '../data3/head/'}
 
     # Train The model
     train_model()

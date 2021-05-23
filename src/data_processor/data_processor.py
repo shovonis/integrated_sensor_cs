@@ -55,6 +55,7 @@ class DataProcessor:
     def manage_imbalance_class(self, X, Y):
         ros = RandomOverSampler(random_state=42)
         X_res, Y_res = ros.fit_resample(X, Y)
+        print("Random Oversampling")
         return X_res, Y_res
 
     def get_x_y_data(self, data, time_step, number_of_features):

@@ -49,18 +49,18 @@ class DataGenerator(tf.keras.utils.Sequence):
         # disparity = '/disp' + disparity
         # disparity = self.frames_extraction(video_path=disparity)
         # Process Eye
-        eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
-        eye = '/eye' + eye
-        eye = self.prepare_time_series_data(data_path=eye)
-        eye = eye.reshape((self.batch_size, -1, 313, 9))
-        print("EYE RESHAPE: ", eye.shape)
+        # eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
+        # eye = '/eye' + eye
+        # eye = self.prepare_time_series_data(data_path=eye)
+        # eye = eye.reshape((self.batch_size, -1, 313, 9))
+        # print("EYE RESHAPE: ", eye.shape)
         # Process Head
-        head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
-        head = '/head' + head
-        head = self.prepare_time_series_data(data_path=head)
-        head = head.reshape((self.batch_size, -1, 313, 4))
-        print("HEAD RESHAPE: ", head.shape)
-
+        # head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
+        # head = '/head' + head
+        # head = self.prepare_time_series_data(data_path=head)
+        # head = head.reshape((self.batch_size, -1, 313, 4))
+        # print("HEAD RESHAPE: ", head.shape)
+        #
 
         # Target
         if self.classification:
@@ -70,7 +70,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         else:
             cs_class = self.dataset.loc[list_IDs_temp, ['fms']].to_numpy()
 
-        return [eye, head], cs_class
+        return [left_clips], cs_class
 
     def on_epoch_end(self):
         """Updates the indexes after each epoch"""

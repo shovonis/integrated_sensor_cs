@@ -16,21 +16,22 @@ from neural import multi_modal_nn as ml
 
 def _construct_model():
     multimodal = ml.DeepVDs(input_shape=input_shape, output_shape=output_shape)
-    # left_input_clip, left_flatten_layer = multimodal.get_conv_3d(input_shape)
+
+    left_input_clip, left_flatten_layer = multimodal.get_conv_3d(input_shape)
     # right_input_clip, right_flatten_layer = multimodal.get_conv_3d(input_shape)
 
     # input_optic, flatten_optics = multimodal.get_conv_3d(input_shape)
     # input_disp, flatten_disp = multimodal.get_conv_3d(input_shape)
 
-    input_eye, flatten_eye = multimodal.conv_lstm(
-        custom_shape=(batch_size, time_step_for_time_series // batch_size, eye_features))
-
-    input_head, flatten_head = multimodal.conv_lstm(custom_shape=(batch_size, time_step_for_time_series // batch_size,
-                                                                  head_features))
+    # input_eye, flatten_eye = multimodal.conv_lstm(
+    #     custom_shape=(batch_size, time_step_for_time_series // batch_size, eye_features))
+    #
+    # input_head, flatten_head = multimodal.conv_lstm(custom_shape=(batch_size, time_step_for_time_series // batch_size,
+    #                                                               head_features))
 
     # Get the full model
-    model = multimodal.get_model([input_eye, input_head],
-                                 [flatten_eye, flatten_head],
+    model = multimodal.get_model([left_input_clip],
+                                 [left_flatten_layer],
                                  classification=classification)
 
     return model
@@ -154,12 +155,12 @@ if __name__ == "__main__":
     # print(meta_data.shape)
     # Setup the Hyper Parameters
     logging.info("................Current Hyper Parameters.......................")
-    input_shape = (128, 128, 128, 3)
+    input_shape = (60, 256, 256, 3)
     time_step_for_time_series = 256
     eye_features = 9
     head_features = 4
-    batch_size = 8
-    epochs = 1000
+    batch_size = 32
+    epochs = 50
     classification = True
 
     logging.info("Image Shape: %s", input_shape)
