@@ -3,13 +3,13 @@ import logging
 import random
 import numpy as np
 import pandas as pd
-import sklearn.metrics as mt
 import tensorflow as tf
-from imblearn.under_sampling import RandomUnderSampler
 from imblearn.over_sampling import RandomOverSampler
+from scipy.stats import pearsonr
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
+from tensorflow.keras import backend as K
 from tensorflow.keras import callbacks
-import result_generation.result_generator as rg
 from data_processor.data_generator import DataGenerator
 from neural import multi_modal_nn as ml
 
@@ -17,21 +17,21 @@ from neural import multi_modal_nn as ml
 def _construct_model():
     multimodal = ml.DeepVDs(input_shape=input_shape, output_shape=output_shape)
 
-    left_input_clip, left_flatten_layer = multimodal.get_conv_3d(input_shape)
+    left_input_clip, left_flatten_layer = multimodal.lrcn(input_shape)
     # right_input_clip, right_flatten_layer = multimodal.get_conv_3d(input_shape)
 
-    # input_optic, flatten_optics = multimodal.get_conv_3d(input_shape)
-    # input_disp, flatten_disp = multimodal.get_conv_3d(input_shape)
+    input_optic, flatten_optics = multimodal.lrcn(input_shape)
+    input_disp, flatten_disp = multimodal.lrcn(input_shape)
 
     # input_eye, flatten_eye = multimodal.conv_lstm(
     #     custom_shape=(batch_size, time_step_for_time_series // batch_size, eye_features))
-    #
+    # #
     # input_head, flatten_head = multimodal.conv_lstm(custom_shape=(batch_size, time_step_for_time_series // batch_size,
     #                                                               head_features))
 
     # Get the full model
-    model = multimodal.get_model([left_input_clip],
-                                 [left_flatten_layer],
+    model = multimodal.get_model([left_input_clip, input_optic, input_disp],
+                                 [left_flatten_layer, flatten_optics, flatten_disp],
                                  classification=classification)
 
     return model
@@ -53,21 +53,23 @@ def _get_data_generators(train, test):
 
 
 def manage_imbalance_class(meta_data):
-    class1, class2, class3 = meta_data['cs_class'].value_counts()
-    logging.info("Current Distribution of Class")
-    logging.info("Class 1:  %s, Class 2: %s, Class 3: %s", class1, class2, class3)
-    logging.info("Random Oversampling class")
+    # class1, class2, class3 = meta_data['cs_class'].value_counts()
+    # logging.info("Current Distribution of Class")
+    # logging.info("Class 1:  %s, Class 2: %s, Class 3: %s", class1, class2, class3)
+    # logging.info("Random Oversampling class")
     X = meta_data
     y = meta_data['cs_class']
     ros = RandomOverSampler(random_state=42)
     X_res, _ = ros.fit_resample(X, y)
     return X_res
 
+def root_mean_squared_error(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true)))
 
 def train_model():
     # Split the train and test data
     logging.info("Train Test Split....")
-    train, test = train_test_split(meta_data, test_size=0.2)
+    train, test = train_test_split(meta_data, test_size=0.3)
     # Reindex them (Must do this)
     train = train.reset_index(drop=True)
     test = test.reset_index(drop=True)
@@ -91,11 +93,11 @@ def train_model():
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     early_stopping = callbacks.EarlyStopping(monitor="val_accuracy",
-                                             mode="max", patience=25,
+                                             mode="max", patience=10,
                                              restore_best_weights=True)
 
     model.compile(loss='categorical_crossentropy',
-                  optimizer=tf.keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0),
+                  optimizer='adam',
                   metrics=['accuracy'])
     train_history = model.fit(train_gen, validation_data=validation_gen, verbose=1, epochs=epochs,
                               callbacks=[tensorboard_callback, early_stopping])
@@ -111,24 +113,18 @@ def train_model():
                                    shuffle=False)
 
     print("Make Prediction on test data...")
-    actual_cs = test['cs_class'].to_numpy()
-    predicted_cs = model.predict(test_generator)
-    predicted_cs = np.argmax(predicted_cs, axis=1)
-    confusion_matrix = mt.confusion_matrix(actual_cs, predicted_cs)
-    rg.plot_confusion_matrix(confusion_matrix, classes=list(range(output_shape - 1)))
-    print(confusion_matrix)
 
-    precisions, recall, f1_score, _ = mt.precision_recall_fscore_support(actual_cs, predicted_cs,
-                                                                         labels=[0, 1, 2])
-    print("Precision: .............")
-    print(precisions)
-    print("Recall: ...............")
-    print(recall)
-    print("F1: ..................")
-    print(f1_score)
-    # Train History
-    rg.plot_train_vs_val_loss(train_history)
-    rg.plot_train_vs_val_acc(train_history)
+    predicted_cs = model.predict(test_generator)
+    actual_cs = test['fms'].to_numpy()
+    predicted_cs = list(np.concatenate(predicted_cs).flat)
+    print("Predicted: ", predicted_cs)
+    print("Actual: ", actual_cs)
+    r2 = r2_score(actual_cs, predicted_cs, multioutput='variance_weighted')
+    print("R2: ", r2)
+    plcc, _ = pearsonr(actual_cs, predicted_cs)
+    print("PLCC: ", plcc)
+
+
 
 
 if __name__ == "__main__":
@@ -143,23 +139,16 @@ if __name__ == "__main__":
     tf.random.set_seed(seed_constant)
 
     # Data path
-    base_path = '../data'
-    meta_data = pd.read_csv('../data/meta_data.csv')
-    # indiv_data = meta_data[(meta_data['individual'] == 1)]
-    # indiv_data = indiv_data.reset_index(drop=True)
-    # print(indiv_data.shape)
-
+    base_path = '../data3'
+    meta_data = pd.read_csv('../data3/meta_data.csv')
     logging.info("Check for imbalance class")
     meta_data = manage_imbalance_class(meta_data)
-    # logging.info("Data Shape after oversampling: %s", meta_data.shape)
-    # print(meta_data.shape)
-    # Setup the Hyper Parameters
     logging.info("................Current Hyper Parameters.......................")
-    input_shape = (60, 256, 256, 3)
-    time_step_for_time_series = 256
+    input_shape = (60, 128, 128, 3)
+    time_step_for_time_series = 60
     eye_features = 9
     head_features = 4
-    batch_size = 32
+    batch_size = 4
     epochs = 50
     classification = True
 
@@ -170,6 +159,6 @@ if __name__ == "__main__":
     logging.info("Batch Size %s", batch_size)
 
     logging.info("Doing classification....")
-    output_shape = 3
+    output_shape = 4
 
     train_model()

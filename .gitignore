@@ -133,5 +133,8 @@ dmypy.json
 .pyre/
 data2/
 data3/
+log/
+results/
+
 #Trained Models
 *.h5

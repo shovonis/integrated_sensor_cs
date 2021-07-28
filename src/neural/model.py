@@ -37,7 +37,7 @@ class Neural:
         if merge:
             merge_layer = concatenate(output_layers)
         else:
-            merge_layer = output_layers
+            merge_layer = output_layers[0]
 
         final = Dense(1)(merge_layer)
         model = Model(inputs=input_layers, outputs=final)

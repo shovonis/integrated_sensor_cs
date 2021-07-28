@@ -1,7 +1,6 @@
 import datetime
 import logging
 import random
-
 import numpy as np
 import pandas as pd
 import sklearn.metrics as mt
@@ -143,18 +142,11 @@ def train_model():
         predicted_cs = model.predict(test_generator)
         actual_cs = test['fms'].to_numpy()
         predicted_cs = list(np.concatenate(predicted_cs).flat)
-        corrected_cs = []
-        for item in predicted_cs:
-            if item < 0:
-                item = 0
-            if item > 10:
-                item = 10
-            corrected_cs.append(item)
-        print("Predicted: ", corrected_cs)
+        print("Predicted: ", predicted_cs)
         print("Actual: ", actual_cs)
-        r2 = r2_score(actual_cs, corrected_cs, multioutput='variance_weighted')
+        r2 = r2_score(actual_cs, predicted_cs, multioutput='variance_weighted')
         print("R2: ", r2)
-        plcc, _ = pearsonr(actual_cs, corrected_cs)
+        plcc, _ = pearsonr(actual_cs, predicted_cs)
         print("PLCC: ", plcc)
 
     # Train History

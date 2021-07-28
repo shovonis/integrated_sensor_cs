@@ -1,18 +1,16 @@
-from neural import model as ml
-from data_processor import data_processor as dp
-import tensorflow as tf
-import numpy as np
 import logging
 from datetime import datetime
-from sklearn.model_selection import StratifiedKFold
-from result_generation import result_generator
-from sklearn.metrics import r2_score
+import numpy as np
+import tensorflow as tf
 from scipy.stats import pearsonr
 from scipy.stats import spearmanr
-from imblearn.over_sampling import RandomOverSampler
+from sklearn.metrics import r2_score
+from sklearn.model_selection import StratifiedKFold
 from tensorflow.keras import backend as K
 from tensorflow.keras import callbacks
-
+from data_processor import data_processor as dp
+from neural import model as ml
+from result_generation import result_generator
 
 
 def root_mean_squared_error(y_true, y_pred):
@@ -50,13 +48,11 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
         print("### Train on Fold: ", current_fold)
 
         if hyper_parameters["classification"]:
-            #
-
             early_stopping = callbacks.EarlyStopping(monitor="val_loss",
                                                      mode="min", patience=25,
                                                      restore_best_weights=True)
 
-            history = model.fit(x=[eye_X[train], head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
+            history = model.fit(x=[head_X[train]], y=target[train], epochs=hyper_parameters["Epochs"],
                                 batch_size=hyper_parameters["batch_size"], validation_split=0.2, verbose=1,
                                 shuffle=False, callbacks=[early_stopping])
             list_history.append(history)
@@ -64,13 +60,13 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
             print("\n ### Evaluate (Test data) on Fold : ", current_fold)
             # TODO: Add or remove modalities here
 
-            loss, accuracy = model.evaluate(x=[eye_X[test], head_X[test]], y=target[test], batch_size=64, verbose=1)
+            loss, accuracy = model.evaluate(x=[head_X[test]], y=target[test], batch_size=64, verbose=1)
             print('On Fold %d test loss: %.3f' % (current_fold, loss))
             list_loss.append(loss)  # Loss is universal
 
             # Make predictions
             actual_cs = target[test]  # Ground Truth
-            predicted_cs = model.predict(x=[eye_X[test], head_X[test]])
+            predicted_cs = model.predict(x=[head_X[test]])
 
             print("Actual CS: ", actual_cs)
             print('On Fold %d test accuracy: %.3f' % (current_fold, accuracy))
@@ -101,8 +97,10 @@ def do_k_fold_evaluation(model, eye_X, head_X, target, fold=10):
             predicted_cs = model.predict(x=[eye_X[test], head_X[test]])
 
             print("Actual CS: ", actual_cs)
+            np.savetxt("actual.csv", actual_cs, delimiter=",")
             predicted_cs = list(np.concatenate(predicted_cs).flat)
             print("Predicted CS: ", predicted_cs)
+            np.savetxt("predicted.csv", actual_cs, delimiter=",")
 
             r2 = r2_score(actual_cs, predicted_cs, multioutput='variance_weighted')
             list_r2.append(r2)
@@ -184,9 +182,9 @@ def train_model():
 
     if hyper_parameters["classification"]:
         # Get Model and Train
-        model = model.get_classification_model(input_layers=[eye_input_layer, head_input_layer],
-                                               output_layers=[eye_output_layer, head_output_layer],
-                                               merge=True)
+        model = model.get_classification_model(input_layers=[head_input_layer],
+                                               output_layers=[head_output_layer],
+                                               merge=False)
         # Compile and Train Model TODO: Do it for Regression
         target = eye_Y  # Set it to head or eye target both are same
         model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -220,7 +218,7 @@ if __name__ == '__main__':
                         format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
     hyper_parameters = {"time_step": 60, "eye_features": 9, "head_features": 4, "Epochs": 300,
-                        "classification": True, "number_of_class": 4, "concatenate": False, "batch_size": 512}
+                        "classification": False, "number_of_class": 4, "concatenate": False, "batch_size": 512}
 
     modalities = {"Eye": True, "Head": True, "Clips": False, "Optic": False, "Disparity": False}
 

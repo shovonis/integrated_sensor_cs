@@ -48,7 +48,7 @@ class DeepVDs:
         X = add_default_block(X, 64, init=initialiser, reg_lambda=reg_lambda)
         X = add_default_block(X, 128, init=initialiser, reg_lambda=reg_lambda)
         X = add_default_block(X, 256, init=initialiser, reg_lambda=reg_lambda)
-        X = add_default_block(X, 512, init=initialiser, reg_lambda=reg_lambda)
+        # X = add_default_block(X, 512, init=initialiser, reg_lambda=reg_lambda)
         # X = add_default_block(X, 1024, init=initialiser, reg_lambda=reg_lambda)
 
         # LSTM output head
@@ -85,12 +85,6 @@ class DeepVDs:
                    kernel_initializer='he_uniform')(X)
         X = MaxPooling3D(pool_size=(2, 2, 2))(X)
         X = BatchNormalization()(X)
-        # X = Dropout(0.5)(X)
-
-        # X = Conv3D(512, kernel_size=(3, 3, 3), activation='relu', kernel_regularizer=L2(l=0.01),
-        #            kernel_initializer='he_uniform')(X)
-        # X = MaxPooling3D(pool_size=(2, 2, 2))(X)
-        # X = BatchNormalization()(X)
         # X = Dropout(0.5)(X)
 
         fatten_layer = Flatten()(X)
@@ -135,7 +129,7 @@ class DeepVDs:
         return final_layer
 
     def get_model(self, input_list, layer_list, classification):
-        # merge_layer = concatenate(layer_list)
-        output = self.get_fully_connected_layers(merged_layers=layer_list[0], classification=classification)
+        merge_layer = concatenate(layer_list)
+        output = self.get_fully_connected_layers(merged_layers=merge_layer, classification=classification)
         model = Model(inputs=input_list, outputs=output)
         return model

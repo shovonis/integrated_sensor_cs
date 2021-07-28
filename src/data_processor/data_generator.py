@@ -41,24 +41,26 @@ class DataGenerator(tf.keras.utils.Sequence):
         clips = '/clips' + clips
         left_clips, right_clips = self.frames_extraction(video_path=clips)
         # # optical
-        # optical = self.dataset.loc[list_IDs_temp, ['optical']].to_numpy()
-        # optical = '/optic' + optical
-        # optical = self.frames_extraction(video_path=optical)
+        optical = self.dataset.loc[list_IDs_temp, ['optical']].to_numpy()
+        optical = '/optic' + optical
+        optical, _ = self.frames_extraction(video_path=optical)
+
         # # Disparity
-        # disparity = self.dataset.loc[list_IDs_temp, ['disparity']].to_numpy()
-        # disparity = '/disp' + disparity
-        # disparity = self.frames_extraction(video_path=disparity)
+        disparity = self.dataset.loc[list_IDs_temp, ['disparity']].to_numpy()
+        disparity = '/disp' + disparity
+        disparity, _ = self.frames_extraction(video_path=disparity)
         # Process Eye
-        # eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
-        # eye = '/eye' + eye
-        # eye = self.prepare_time_series_data(data_path=eye)
-        # eye = eye.reshape((self.batch_size, -1, 313, 9))
+        eye = self.dataset.loc[list_IDs_temp, ['eye']].to_numpy()
+        eye = '/eye' + eye
+        eye = self.prepare_time_series_data(data_path=eye)
+        eye = eye.reshape((self.batch_size, -1, 60, 9))
         # print("EYE RESHAPE: ", eye.shape)
+
         # Process Head
-        # head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
-        # head = '/head' + head
-        # head = self.prepare_time_series_data(data_path=head)
-        # head = head.reshape((self.batch_size, -1, 313, 4))
+        head = self.dataset.loc[list_IDs_temp, ['head']].to_numpy()
+        head = '/head' + head
+        head = self.prepare_time_series_data(data_path=head)
+        head = head.reshape((self.batch_size, -1, 60, 4))
         # print("HEAD RESHAPE: ", head.shape)
         #
 
@@ -66,11 +68,11 @@ class DataGenerator(tf.keras.utils.Sequence):
         if self.classification:
             cs_class = self.dataset.loc[list_IDs_temp, ['cs_class']].to_numpy()
             self.tmp.extend(cs_class)
-            cs_class = tf.keras.utils.to_categorical(cs_class, num_classes=3)
+            cs_class = tf.keras.utils.to_categorical(cs_class, num_classes=4)
         else:
             cs_class = self.dataset.loc[list_IDs_temp, ['fms']].to_numpy()
 
-        return [left_clips], cs_class
+        return [left_clips, optical, disparity], cs_class
 
     def on_epoch_end(self):
         """Updates the indexes after each epoch"""
@@ -95,19 +97,19 @@ class DataGenerator(tf.keras.utils.Sequence):
                 if not success:
                     break
                 L_resized_frame = cv2.resize(frame[:, 0:256], self.image_shape)
-                R_resized_frame = cv2.resize(frame[:, 256:], self.image_shape)
+                # R_resized_frame = cv2.resize(frame[:, 256:], self.image_shape)
 
                 normalized_frame = L_resized_frame / 255
                 left_eye_frames.append(normalized_frame)
 
-                normalized_frame = R_resized_frame / 255
+                # normalized_frame = R_resized_frame / 255
                 right_eye_frames.append(normalized_frame)
 
-            # left_eye_features.append(random.sample(left_eye_frames, self.time_step_cnn))
-            # left_eye_features.append(random.sample(left_eye_frames, self.time_step_cnn))
+            left_eye_features.append(random.sample(left_eye_frames, self.time_step_cnn))
+            # right_eye_features.append(random.sample(right_eye_frames, self.time_step_cnn))
 
-            left_eye_features.append(left_eye_frames[0: self.time_step_cnn])
-            right_eye_features.append(right_eye_frames[0: self.time_step_cnn])
+            # left_eye_features.append(left_eye_frames[0: self.time_step_cnn])
+            # right_eye_features.append(right_eye_frames[0: self.time_step_cnn])
 
             video_reader.release()
 
@@ -119,7 +121,7 @@ class DataGenerator(tf.keras.utils.Sequence):
             current_path = self.base_path + path
             # print(current_path)
             data = pd.read_csv(current_path[0])
-            data = data.drop(['#Frame'], axis=1)  # Drop the frame number
+            data = data.drop(['#Frame', 'cs', 'fms'], axis=1)  # Drop the frame number
             scaler = StandardScaler()
             data = scaler.fit_transform(data)
             for i in range(data.shape[0]):
@@ -127,8 +129,8 @@ class DataGenerator(tf.keras.utils.Sequence):
                 if end_ix >= data.shape[0]:
                     break
                 seq_X = data[i:end_ix]
-                print("Sequence Shape: ", np.asarray(seq_X).shape)
+                # print("Sequence Shape: ", np.asarray(seq_X).shape)
                 X.append(seq_X)
         sample_per_batch = random.sample(X, self.batch_size)
-        print("LSTM Shape", np.array(X).shape)
-        return np.array(X)
+        # print("LSTM Shape", np.array(X).shape)
+        return np.array(sample_per_batch)
